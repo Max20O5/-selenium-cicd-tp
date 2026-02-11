@@ -19,27 +19,12 @@ jobs:
       with:
         python-version: '3.9'
     
-    - name: Install Chrome
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-
-        HROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1)
-        CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}")
-        wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
-        unzip -q chromedriver-linux64.zip
-        sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/chromedriver
-        rm -rf chromedriver-linux64 chromedriver-linux64.zip
-    
     - name: Install dependencies
       run: |
         cd tests
         pip install -r requirements.txt
     
     - name: Run Selenium Tests
-      env:
-        CI: true
       run: |
         cd tests
         python -m pytest test_selenium.py -v --html=../test-report.html --self-contained-html
