@@ -32,7 +32,7 @@ jobs:
     - name:  Run Calculator Tests
       run: |
         cd tests
-        python -m pytest test_calculator.py -v --html=../calcul-report.html --self-contained-html
+        python -m pytest calculator_page.py -v --html=../calcul-report.html --self-contained-html
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
