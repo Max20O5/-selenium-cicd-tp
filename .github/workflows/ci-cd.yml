@@ -3,11 +3,14 @@ name: CI/CD Pipeline with Selenium Tests
 on:
   push:
     branches: [ main, develop ]
+    tags:
+      - 'v*'  # Déclenchement sur les tags version (v1.0.0, v2.0.0, etc.)
   pull_request:
     branches: [ main ]
 
 jobs:
-  test:
+  # Job 1: Tests sur Chrome
+  test-chrome:
     runs-on: ubuntu-latest
     
     steps:
@@ -24,20 +27,168 @@ jobs:
         cd tests
         pip install -r requirements.txt
     
-    - name: Run Selenium Tests
+    - name: Run Selenium Tests on Chrome
       run: |
         cd tests
-        python -m pytest test_selenium.py -v --html=../test-report.html --self-contained-html
-
-    - name: Upload test results
+        python -m pytest test_selenium.py -v --html=../test-report-chrome.html --self-contained-html
+    
+    - name: Upload Chrome test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results
-        path: test-report.html
+        name: test-results-chrome
+        path: test-report-chrome.html
 
-  deploy:
-    needs: test
+  # Job 2: Tests sur Firefox
+  test-firefox:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+    
+    - name: Install Firefox
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y firefox
+    
+    - name: Install dependencies
+      run: |
+        cd tests
+        pip install -r requirements.txt
+    
+    - name: Run Selenium Tests on Firefox
+      run: |
+        cd tests
+        python -m pytest test_selenium_firefox.py -v --html=../test-report-firefox.html --self-contained-html
+    
+    - name: Upload Firefox test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-firefox
+        path: test-report-firefox.html
+
+  # Job 3: Notification en cas d'échec (Email)
+  notify-failure-email:
+    runs-on: ubuntu-latest
+    needs: [test-chrome, test-firefox]
+    if: failure()
+    
+    steps:
+    - name: Send email notification
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "❌ Tests Failed - Selenium CI/CD"
+        body: |
+          ⚠️ Les tests automatisés ont échoué !
+          
+          📦 Repository: ${{ github.repository }}
+          🌿 Branch: ${{ github.ref_name }}
+          💾 Commit: ${{ github.sha }}
+          👤 Author: ${{ github.actor }}
+          
+          🔗 Voir les détails: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        to: maximeclement2005@gmail.com  # ⚠️ CHANGEZ CETTE ADRESSE
+        from: Selenium CI/CD Bot
+      continue-on-error: true  # Ne pas bloquer si l'email échoue
+
+  # Job 4: Notification en cas d'échec (Slack - optionnel)
+  notify-failure-slack:
+    runs-on: ubuntu-latest
+    needs: [test-chrome, test-firefox]
+    if: failure()
+    
+    steps:
+    - name: Send Slack notification
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: |
+          {
+            "text": "❌ Tests Selenium échoués",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Tests échoués - Selenium CI/CD"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Repository:*\n${{ github.repository }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Branch:*\n${{ github.ref_name }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Author:*\n${{ github.actor }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Commit:*\n${{ github.sha }}"
+                  }
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "Voir les logs"
+                    },
+                    "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                ]
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      continue-on-error: true  # Ne pas bloquer si Slack échoue
+
+  # Job 5: Déploiement Staging (branche develop)
+  deploy-staging:
+    needs: [test-chrome, test-firefox]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to Staging
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./src
+        destination_dir: staging
+        commit_message: "🚀 Deploy staging from develop"
+    
+    - name: Comment on commit
+      run: |
+        echo "✅ Déployé en staging avec succès!"
+        echo "🌐 URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/staging/"
+
+  # Job 6: Déploiement Production (branche main)
+  deploy-production:
+    needs: [test-chrome, test-firefox]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -45,8 +196,63 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Deploy to GitHub Pages
+    - name: Deploy to Production
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./src
+        commit_message: "🚀 Deploy production from main"
+    
+    - name: Comment on commit
+      run: |
+        echo "✅ Déployé en production avec succès!"
+        echo "🌐 URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+
+  # Job 7: Déploiement Release (tags v*)
+  deploy-release:
+    needs: [test-chrome, test-firefox]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Get tag version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        release_name: Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          🚀 **Nouvelle version : ${{ steps.get_version.outputs.VERSION }}**
+          
+          ## ✨ Fonctionnalités
+          - Calculatrice web interactive
+          - Tests automatisés avec Selenium
+          - Pipeline CI/CD complet
+          
+          ## 🧪 Tests
+          - ✅ Tests Chrome
+          - ✅ Tests Firefox
+          
+          ## 📦 Déploiement
+          Déployé automatiquement sur GitHub Pages
+        draft: false
+        prerelease: false
+    
+    - name: Deploy Release
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./src
+        commit_message: "🚀 Deploy release ${{ steps.get_version.outputs.VERSION }}"
+    
+    - name: Success message
+      run: |
+        echo "🎉 Release ${{ steps.get_version.outputs.VERSION }} créée et déployée avec succès!"
