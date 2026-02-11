@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import os
+
 class TestCalculator:
     @pytest.fixture(scope="class")
     def driver(self):
@@ -17,15 +18,16 @@ class TestCalculator:
         # Configuration pour environnement CI/CD
         if os.getenv('CI'):
             chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.implicitly_wait(10)
         yield driver
         driver.quit()
+
     def test_page_loads(self, driver):
         """Test 1: Vérifier que la page se charge correctement"""
         file_path = os.path.abspath("../src/index.html")
@@ -100,5 +102,6 @@ class TestCalculator:
             )
             assert f"Résultat: {expected}" in result.text
             time.sleep(1)
+
 if __name__ == "__main__":
     pytest.main(["-v", "--html=report.html", "--self-contained-html"])
