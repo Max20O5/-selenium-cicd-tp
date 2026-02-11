@@ -1,64 +1,26 @@
-import pytest
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from calculator_page import CalculatorPage
+import os
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
 
+class CalculatorPage:
+    def __init__(self, driver):
+        self.driver = driver
+    def load_page(self):
+        file_path = os.path.abspath("../src/index.html")
+        self.driver.get(f"file://{file_path}")
+    def enter_first_number(self, value):
 
-class TestCalculatorPage:
-
-    @pytest.fixture(scope="class")
-    def driver(self):
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-
-        driver = webdriver.Chrome(options=chrome_options)
-        yield driver
-        driver.quit()
-
-    def test_addition_with_page_object(self, driver):
-        page = CalculatorPage(driver)
-        page.load_page()
-
-        page.enter_first_number(10)
-        page.enter_second_number(5)
-        page.select_operation("add")
-        page.click_calculate()
-
-        assert "Résultat: 15" in page.get_result()
-
-    def test_subtraction_with_page_object(self, driver):
-        page = CalculatorPage(driver)
-        page.load_page()
-
-        page.enter_first_number(10)
-        page.enter_second_number(3)
-        page.select_operation("subtract")
-        page.click_calculate()
-
-        assert "Résultat: 7" in page.get_result()
-
-    def test_multiplication_with_page_object(self, driver):
-        page = CalculatorPage(driver)
-        page.load_page()
-
-        page.enter_first_number(4)
-        page.enter_second_number(2)
-        page.select_operation("multiply")
-        page.click_calculate()
-
-        assert "Résultat: 8" in page.get_result()
-
-    def test_division_with_page_object(self, driver):
-        page = CalculatorPage(driver)
-        page.load_page()
-
-        page.enter_first_number(8)
-        page.enter_second_number(2)
-        page.select_operation("divide")
-        page.click_calculate()
-
-        assert "Résultat: 4" in page.get_result()
+        self.driver.find_element(By.ID, "num1").send_keys(str(value))
+    def enter_second_number(self, value):
+        self.driver.find_element(By.ID, "num2").send_keys(str(value))
+    def select_operation(self, operation):
+        select = Select(self.driver.find_element(By.ID, "operation"))
+        select.select_by_value(operation)
+    def click_calculate(self):
+        self.driver.find_element(By.ID, "calculate").click()
+    def get_result(self):
+        result = WebDriverWait(self.driver, 10).until(
+        EC.presence_of_element_located((By.ID, "result")))
+        return result.text
