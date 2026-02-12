@@ -1,3 +1,6 @@
+
+Copier
+
 import pytest
 import time
 from selenium import webdriver
@@ -7,6 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.firefox.options import Options
 import os
+import subprocess
 
 
 class TestCalculatorFirefox:
@@ -20,6 +24,28 @@ class TestCalculatorFirefox:
         firefox_options.add_argument('--no-sandbox')
         firefox_options.add_argument('--disable-dev-shm-usage')
         firefox_options.add_argument('--window-size=1920,1080')
+        
+        # Trouver le binaire Firefox
+        firefox_binary = None
+        possible_paths = [
+            '/usr/bin/firefox',
+            '/usr/bin/firefox-esr',
+            '/snap/bin/firefox',
+            'firefox'
+        ]
+        
+        for path in possible_paths:
+            try:
+                result = subprocess.run([path, '--version'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    firefox_binary = path
+                    print(f"✅ Firefox trouvé : {path}")
+                    break
+            except:
+                continue
+        
+        if firefox_binary:
+            firefox_options.binary_location = firefox_binary
         
         # Selenium Manager gérera automatiquement GeckoDriver
         driver = webdriver.Firefox(options=firefox_options)
